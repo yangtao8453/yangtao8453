@@ -1,0 +1,805 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/info-img/%E5%A4%B4%E5%83%8F.jpg">
+  <link rel="icon" href="/img/info-img/%E5%A4%B4%E5%83%8F.jpg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="tao">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="昨天遇到了个不常见的错误：ConcurrentModificationException，场景是对于ArrayList中满足条件的元素进行删除，查看代码发现我用的是增强for循环，仔细回想自己大二学Java时好像遇到过这个坑，又踩了一遍…">
+<meta property="og:type" content="article">
+<meta property="og:title" content="关于ArrayList循环删除元素的坑">
+<meta property="og:url" content="http://example.com/2022/09/25/arraylist-delete-element-problem/index.html">
+<meta property="og:site_name" content="Tao&#39;s blog">
+<meta property="og:description" content="昨天遇到了个不常见的错误：ConcurrentModificationException，场景是对于ArrayList中满足条件的元素进行删除，查看代码发现我用的是增强for循环，仔细回想自己大二学Java时好像遇到过这个坑，又踩了一遍…">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/img/blog-index-img/java-arraylist.jpg">
+<meta property="article:published_time" content="2022-09-25T15:43:00.000Z">
+<meta property="article:modified_time" content="2022-09-25T15:43:00.000Z">
+<meta property="article:author" content="tao">
+<meta property="article:tag" content="源码解读">
+<meta property="article:tag" content="问题复盘">
+<meta property="article:tag" content="集合框架">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="http://example.com/img/blog-index-img/java-arraylist.jpg">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>关于ArrayList循环删除元素的坑 - Tao&#39;s blog</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"example.com","root":"/","version":"1.9.3","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>Tao&#39;s blog</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/links/">
+                <i class="iconfont icon-link-fill"></i>
+                友链
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/blog-banner-img/java-arraylist.jpg') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="关于ArrayList循环删除元素的坑"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-author" aria-hidden="true"></i>
+        tao
+      </span>
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2022-09-25 23:43" pubdate>
+          2022年9月25日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          <!-- compatible with older versions-->
+          5.5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          <!-- compatible with older versions-->
+          19 分钟
+        
+      </span>
+    
+
+    
+    
+      
+        <span id="busuanzi_container_page_pv" style="display: none">
+          <i class="iconfont icon-eye" aria-hidden="true"></i>
+          <span id="busuanzi_value_page_pv"></span> 次
+        </span>
+        
+      
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">关于ArrayList循环删除元素的坑</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>昨天遇到了个不常见的错误：ConcurrentModificationException，场景是对于ArrayList中满足条件的元素进行删除，查看代码发现我用的是增强for循环，仔细回想自己大二学Java时好像遇到过这个坑，又踩了一遍…                                                                                                                                                                </p>
+<h2 id="ArrayList遍历删除"><a href="#ArrayList遍历删除" class="headerlink" title="ArrayList遍历删除"></a>ArrayList遍历删除</h2><p>初始化需要用到的ArrayList，<strong>注意，此处list当中有两个 2 元素</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> ArrayList&lt;Integer&gt; list = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;();<br><br><span class="hljs-keyword">static</span> &#123;<br>    list.add(<span class="hljs-number">1</span>);<br>    list.add(<span class="hljs-number">2</span>);<br>    list.add(<span class="hljs-number">2</span>);<br>    list.add(<span class="hljs-number">3</span>);<br>    list.add(<span class="hljs-number">4</span>);<br>    list.add(<span class="hljs-number">5</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><strong>ArrayList的遍历删除分为4种：</strong></p>
+<h3 id="普通for循环删除"><a href="#普通for循环删除" class="headerlink" title="普通for循环删除"></a>普通for循环删除</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@org</span>.junit.Test<br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">test2</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>; i &lt; list.size(); i++) &#123;<br>        <span class="hljs-keyword">if</span> (list.get(i) % <span class="hljs-number">2</span> == <span class="hljs-number">0</span>) &#123;<br>            list.remove(i);<br>        &#125;<br>    &#125;<br>    System.out.println(list);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>**<code>踩坑：</code>**你以为会输出 [1, 3, 5]，但实际输出是</p>
+<p><img src="https://picgo-1304850123.cos.ap-guangzhou.myqcloud.com/image-20220925214913923.png" srcset="/img/loading.gif" lazyload></p>
+<p>list当中还保留了一个2，因为在删除第一个2以后，list大小发生了变化，而根据索引访问的下标为2的元素时，就访问到了3，第二个2向前推进了1位，<strong>所以普通for循环不适合删除多个满足条件的元素</strong>！</p>
+<h3 id="增强for循环删除"><a href="#增强for循环删除" class="headerlink" title="增强for循环删除"></a>增强for循环删除</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@org</span>.junit.Test<br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">test1</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">for</span> (Integer integer : list) &#123;<br>        <span class="hljs-keyword">if</span> (integer % <span class="hljs-number">2</span> == <span class="hljs-number">0</span>) list.remove(integer);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果普通for循环会留巨坑，那么增强for循环相对好点，因为他直接给你报错了，不会留坑</p>
+<p><img src="https://picgo-1304850123.cos.ap-guangzhou.myqcloud.com/image-20220925214941792.png" srcset="/img/loading.gif" lazyload></p>
+<h3 id="通过迭代器删除"><a href="#通过迭代器删除" class="headerlink" title="通过迭代器删除"></a>通过迭代器删除</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@org</span>.junit.Test<br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">test5</span><span class="hljs-params">()</span> &#123;<br>    Iterator&lt;Integer&gt; iterator = list.iterator();<br>    <span class="hljs-keyword">while</span> (iterator.hasNext()) &#123;<br>        <span class="hljs-keyword">if</span> (iterator.next() % <span class="hljs-number">2</span> == <span class="hljs-number">0</span>) &#123;<br>            iterator.remove();<br>        &#125;<br>    &#125;<br>    System.out.println(list);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://picgo-1304850123.cos.ap-guangzhou.myqcloud.com/image-20220925214947452.png" srcset="/img/loading.gif" lazyload></p>
+<p>通过迭代器的remove方法可以正确删除满足条件的元素</p>
+<h4 id="removeIf"><a href="#removeIf" class="headerlink" title="removeIf"></a>removeIf</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@org</span>.junit.Test<br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">test3</span><span class="hljs-params">()</span> &#123;<br>    list.removeIf(integer -&gt; integer % <span class="hljs-number">2</span> == <span class="hljs-number">0</span>);<br>    System.out.println(list);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><img src="https://picgo-1304850123.cos.ap-guangzhou.myqcloud.com/image-20220925214953642.png" srcset="/img/loading.gif" lazyload></p>
+<p>removeIf方法，传入一个判断型表达式Predicate&lt;? super E&gt;，也可以正确删除元素</p>
+<h2 id="原理分析"><a href="#原理分析" class="headerlink" title="原理分析"></a>原理分析</h2><p>普通for循环的原理已讲过，这里重点分析增强for循环和迭代器删除的区别</p>
+<p>For-Each基于内部迭代器Itr的hasNext和next()，源码如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Itr</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">Iterator</span>&lt;E&gt; &#123;<br>    <span class="hljs-type">int</span> cursor;       <span class="hljs-comment">// index of next element to return</span><br>    <span class="hljs-type">int</span> <span class="hljs-variable">lastRet</span> <span class="hljs-operator">=</span> -<span class="hljs-number">1</span>; <span class="hljs-comment">// index of last element returned; -1 if no such</span><br>    <span class="hljs-type">int</span> <span class="hljs-variable">expectedModCount</span> <span class="hljs-operator">=</span> modCount;<br><br>    Itr() &#123;&#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">hasNext</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> cursor != size;<br>    &#125;<br><br>    <span class="hljs-meta">@SuppressWarnings(&quot;unchecked&quot;)</span><br>    <span class="hljs-keyword">public</span> E <span class="hljs-title function_">next</span><span class="hljs-params">()</span> &#123;<br>        checkForComodification();<br>        <span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> cursor;<br>        <span class="hljs-keyword">if</span> (i &gt;= size)<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">NoSuchElementException</span>();<br>        Object[] elementData = ArrayList.<span class="hljs-built_in">this</span>.elementData;<br>        <span class="hljs-keyword">if</span> (i &gt;= elementData.length)<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ConcurrentModificationException</span>();<br>        cursor = i + <span class="hljs-number">1</span>;<br>        <span class="hljs-keyword">return</span> (E) elementData[lastRet = i];<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">remove</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">if</span> (lastRet &lt; <span class="hljs-number">0</span>)<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>();<br>        checkForComodification();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            ArrayList.<span class="hljs-built_in">this</span>.remove(lastRet);<br>            cursor = lastRet;<br>            lastRet = -<span class="hljs-number">1</span>;<br>            expectedModCount = modCount;<br>        &#125; <span class="hljs-keyword">catch</span> (IndexOutOfBoundsException ex) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ConcurrentModificationException</span>();<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-meta">@SuppressWarnings(&quot;unchecked&quot;)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">forEachRemaining</span><span class="hljs-params">(Consumer&lt;? <span class="hljs-built_in">super</span> E&gt; consumer)</span> &#123;<br>        Objects.requireNonNull(consumer);<br>        <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> <span class="hljs-variable">size</span> <span class="hljs-operator">=</span> ArrayList.<span class="hljs-built_in">this</span>.size;<br>        <span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> cursor;<br>        <span class="hljs-keyword">if</span> (i &gt;= size) &#123;<br>            <span class="hljs-keyword">return</span>;<br>        &#125;<br>        <span class="hljs-keyword">final</span> Object[] elementData = ArrayList.<span class="hljs-built_in">this</span>.elementData;<br>        <span class="hljs-keyword">if</span> (i &gt;= elementData.length) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ConcurrentModificationException</span>();<br>        &#125;<br>        <span class="hljs-keyword">while</span> (i != size &amp;&amp; modCount == expectedModCount) &#123;<br>            consumer.accept((E) elementData[i++]);<br>        &#125;<br>        <span class="hljs-comment">// update once at end of iteration to reduce heap write traffic</span><br>        cursor = i;<br>        lastRet = i - <span class="hljs-number">1</span>;<br>        checkForComodification();<br>    &#125;<br><br>    <span class="hljs-keyword">final</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">checkForComodification</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">if</span> (modCount != expectedModCount)<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ConcurrentModificationException</span>();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注意属性expectedModCount，初始化赋值为ArrayList的属性值</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">int</span> <span class="hljs-variable">expectedModCount</span> <span class="hljs-operator">=</span> modCount;<br></code></pre></td></tr></table></figure>
+
+<p>modCount理解为ArrayList对象的修改次数</p>
+<p><code>每次调用next方法都会先调用checkForComodification，检查Itr内部的expectedModCount和ArrayList的modCount是否一致，不一致则抛出ConcurrentModificationException</code></p>
+<p>再看增强for循环删除元素调用的remove方法源码，<code>注意：这里的remove为ArrayList的remove</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">remove</span><span class="hljs-params">(Object o)</span> &#123;<br>    <span class="hljs-keyword">if</span> (o == <span class="hljs-literal">null</span>) &#123;<br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">index</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>; index &lt; size; index++)<br>            <span class="hljs-keyword">if</span> (elementData[index] == <span class="hljs-literal">null</span>) &#123;<br>                fastRemove(index);<br>                <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>            &#125;<br>    &#125; <span class="hljs-keyword">else</span> &#123;<br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">index</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>; index &lt; size; index++)<br>            <span class="hljs-keyword">if</span> (o.equals(elementData[index])) &#123;<br>                fastRemove(index);<br>                <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>            &#125;<br>    &#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>fastRemove</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">fastRemove</span><span class="hljs-params">(<span class="hljs-type">int</span> index)</span> &#123;<br>    modCount++;<br>    <span class="hljs-type">int</span> <span class="hljs-variable">numMoved</span> <span class="hljs-operator">=</span> size - index - <span class="hljs-number">1</span>;<br>    <span class="hljs-keyword">if</span> (numMoved &gt; <span class="hljs-number">0</span>)<br>        System.arraycopy(elementData, index+<span class="hljs-number">1</span>, elementData, index,<br>                         numMoved);<br>    elementData[--size] = <span class="hljs-literal">null</span>; <span class="hljs-comment">// clear to let GC do its work</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>fastRemove中修改了ArrayList的属性modCount，让其自增，但是此时Itr内部的expectedModCount并没有修改，所以在执行了本次循环之后进入下一次循环（调用next），**<code>modCount != expectedModCount</code>**，即抛出了ConcurrentModificationException。</p>
+<p>而采用迭代器删除元素，即Itr的remove方法，是不会改变ArrayList的modCount，此时expectedModCount &#x3D; modCount是成立的，所以checkForComodification并不会抛出异常，<strong>这就是iterator的remove和list的remove的区别！</strong></p>
+<p>顺便看看removeIf的内部实现</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Override</span><br><span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">removeIf</span><span class="hljs-params">(Predicate&lt;? <span class="hljs-built_in">super</span> E&gt; filter)</span> &#123;<br>    Objects.requireNonNull(filter);<br>    <span class="hljs-comment">// figure out which elements are to be removed</span><br>    <span class="hljs-comment">// any exception thrown from the filter predicate at this stage</span><br>    <span class="hljs-comment">// will leave the collection unmodified</span><br>    <span class="hljs-type">int</span> <span class="hljs-variable">removeCount</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>;<br>    <span class="hljs-keyword">final</span> <span class="hljs-type">BitSet</span> <span class="hljs-variable">removeSet</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BitSet</span>(size);<br>    <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> <span class="hljs-variable">expectedModCount</span> <span class="hljs-operator">=</span> modCount;<br>    <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> <span class="hljs-variable">size</span> <span class="hljs-operator">=</span> <span class="hljs-built_in">this</span>.size;<br>    <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> i=<span class="hljs-number">0</span>; modCount == expectedModCount &amp;&amp; i &lt; size; i++) &#123;<br>        <span class="hljs-meta">@SuppressWarnings(&quot;unchecked&quot;)</span><br>        <span class="hljs-keyword">final</span> <span class="hljs-type">E</span> <span class="hljs-variable">element</span> <span class="hljs-operator">=</span> (E) elementData[i];<br>        <span class="hljs-keyword">if</span> (filter.test(element)) &#123;<br>            removeSet.set(i);<br>            removeCount++;<br>        &#125;<br>    &#125;<br>    <span class="hljs-keyword">if</span> (modCount != expectedModCount) &#123;<br>        <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ConcurrentModificationException</span>();<br>    &#125;<br><br>    <span class="hljs-comment">// shift surviving elements left over the spaces left by removed elements</span><br>    <span class="hljs-keyword">final</span> <span class="hljs-type">boolean</span> <span class="hljs-variable">anyToRemove</span> <span class="hljs-operator">=</span> removeCount &gt; <span class="hljs-number">0</span>;<br>    <span class="hljs-keyword">if</span> (anyToRemove) &#123;<br>        <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> <span class="hljs-variable">newSize</span> <span class="hljs-operator">=</span> size - removeCount;<br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> i=<span class="hljs-number">0</span>, j=<span class="hljs-number">0</span>; (i &lt; size) &amp;&amp; (j &lt; newSize); i++, j++) &#123;<br>            i = removeSet.nextClearBit(i);<br>            elementData[j] = elementData[i];<br>        &#125;<br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> k=newSize; k &lt; size; k++) &#123;<br>            elementData[k] = <span class="hljs-literal">null</span>;  <span class="hljs-comment">// Let gc do its work</span><br>        &#125;<br>        <span class="hljs-built_in">this</span>.size = newSize;<br>        <span class="hljs-keyword">if</span> (modCount != expectedModCount) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ConcurrentModificationException</span>();<br>        &#125;<br>        modCount++;<br>    &#125;<br><br>    <span class="hljs-keyword">return</span> anyToRemove;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>先拿到modCount并赋值给expectedModCount，再修改ArrayList的内部数组elementData，修改期间检查expectedModCount与modCount是否相等，由此决定是否抛出ConcurrentModificationException。</p>
+<center>【END】</center>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E9%9B%86%E5%90%88%E6%A1%86%E6%9E%B6/" class="category-chain-item">集合框架</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/%E6%BA%90%E7%A0%81%E8%A7%A3%E8%AF%BB/">#源码解读</a>
+      
+        <a href="/tags/%E9%97%AE%E9%A2%98%E5%A4%8D%E7%9B%98/">#问题复盘</a>
+      
+        <a href="/tags/%E9%9B%86%E5%90%88%E6%A1%86%E6%9E%B6/">#集合框架</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>关于ArrayList循环删除元素的坑</div>
+      <div>http://example.com/2022/09/25/arraylist-delete-element-problem/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>tao</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2022年9月25日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2022/09/24/learning-about-nexttick/" title="简单了解Vue.nextTick">
+                        <span class="hidden-mobile">简单了解Vue.nextTick</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  <article id="comments" lazyload>
+    
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#comments', function() {
+      var light = 'github-light';
+      var dark = 'github-dark';
+      var schema = document.documentElement.getAttribute('data-user-color-scheme');
+      if (schema === 'dark') {
+        schema = dark;
+      } else {
+        schema = light;
+      }
+      window.UtterancesThemeLight = light;
+      window.UtterancesThemeDark = dark;
+      var s = document.createElement('script');
+      s.setAttribute('src', 'https://utteranc.es/client.js');
+      s.setAttribute('repo', 'yangtao8453');
+      s.setAttribute('issue-term', 'pathname');
+      
+      s.setAttribute('label', 'utterances');
+      
+      s.setAttribute('theme', schema);
+      s.setAttribute('crossorigin', 'anonymous');
+      document.getElementById('comments').appendChild(s);
+    })
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+  </article>
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('mermaid' in window) {
+        mermaid.init();
+      }
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <span>power by: </span> <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span><u>Hexo</u></span></a> <span> - </span> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span><u>Fluid</u></span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
